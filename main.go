@@ -123,7 +123,7 @@ func handleDeleteRequest(w http.ResponseWriter, r *http.Request) {
 	// Check if bucket exists
 	bucketPath := filepath.Join(bucketPath, bucketName)
 	if _, err := os.Stat(bucketPath); os.IsNotExist(err) {
-		http.Error(w, "Bucket not found", http.StatusNotFound)
+		s3error(w, r, "The specified bucket does not exist", "NoSuchBucket", http.StatusNotFound)
 		return
 	}
 
@@ -132,19 +132,20 @@ func handleDeleteRequest(w http.ResponseWriter, r *http.Request) {
 
 	// Check if file exists
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		http.Error(w, "Object not found", http.StatusNotFound)
+		s3error(w, r, "The resource you requested does not exist", "NoSuchKey", http.StatusNotFound)
 		return
 	}
 
-	// Delete file
+	// Delete bucket/object
 	err := os.Remove(filePath)
 	if err != nil {
-		http.Error(w, "Failed to delete object", http.StatusInternalServerError)
+		//TBD  - we most prob got here because dir is not empty ..Provide beter err handling/reporting
+		s3error(w, r, "Bucket is not empty", "NotEmpty", http.StatusConflict)
+
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "Object %s deleted successfully from bucket %s", objectKey, bucketName)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func handlePostRequest(w http.ResponseWriter, r *http.Request) {
