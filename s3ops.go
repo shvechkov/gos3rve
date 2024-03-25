@@ -114,7 +114,7 @@ type XmlCompleteMultipartUpload struct {
 	Parts []XmlMultipartUploadPart `xml:"Part"`
 }
 
-func finilieMultipartUpload(w http.ResponseWriter, r *http.Request, bucketPath string, objectKey string) error {
+func finilizeMultipartUpload(w http.ResponseWriter, r *http.Request, bucketPath string, objectKey string) error {
 
 	_, _, uploadId, _ := isMultiPartUpload(r)
 
@@ -135,7 +135,7 @@ func finilieMultipartUpload(w http.ResponseWriter, r *http.Request, bucketPath s
 
 	dstFilePath := filepath.Join(bucketPath, objectKey)
 
-	dstFile, err := os.OpenFile(dstFilePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	dstFile, err := os.OpenFile(dstFilePath, os.O_TRUNC|os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		fmt.Println("Error opening file:", err)
 		return err
@@ -155,6 +155,8 @@ func finilieMultipartUpload(w http.ResponseWriter, r *http.Request, bucketPath s
 			return err
 
 		}
+		//TBD - check MD5s for parts
+		// !!!!!!!!!
 
 		// Append data to the file
 		_, err = dstFile.Write(objectContent)
@@ -199,7 +201,7 @@ func putObject(w http.ResponseWriter, r *http.Request, filePath string) (err err
 		//filePath = filePath + "_" + uploadId + "_" + partNumber
 	}
 
-	if err = ioutil.WriteFile(filePath, objectContent, 0644); err != nil {
+	if err = os.WriteFile(filePath, objectContent, 0644); err != nil {
 		s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
 		log.Println("Error while writing into file ", filePath, " ", err.Error())
 		return
@@ -220,23 +222,34 @@ func putObject(w http.ResponseWriter, r *http.Request, filePath string) (err err
 	return nil
 }
 
-func getObject(w http.ResponseWriter, r *http.Request, filePath string) (err error) {
+func getObject(w http.ResponseWriter, r *http.Request, filePath string) error {
 
 	// Check if file exists
-	if _, err = os.Stat(filePath); os.IsNotExist(err) {
+	fstat, err := os.Stat(filePath)
+	if os.IsNotExist(err) {
 		s3error(w, r, "The resource you requested does not exist", "NoSuchKey", http.StatusNotFound)
-		return
+		return err
 	}
 
 	// Read file content
 	fileContent, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		http.Error(w, "Failed to read object content", http.StatusInternalServerError)
-		return
+		return err
 	}
 
-	// Serve file content
+	hash := md5.New()
+	if _, err = hash.Write(fileContent); err != nil {
+		s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+		log.Println("Error while calculating md5 ", err.Error())
+		return err
+	}
+
+	hash_str := hex.EncodeToString(hash.Sum(nil))
+
+	w.Header().Set("ETag", hash_str)
 	w.Header().Set("Content-Type", http.DetectContentType(fileContent))
+	w.Header().Set("content-length", strconv.FormatInt(fstat.Size(), 10))
 	w.Write(fileContent)
 
 	return nil

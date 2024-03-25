@@ -69,8 +69,7 @@ func handleGetRequest(w http.ResponseWriter, r *http.Request) {
 
 	// Check if bucket exists
 	bucketPath := filepath.Join(bucketPath, bucketName)
-	fstat, err := os.Stat(bucketPath)
-
+	_, err := os.Stat(bucketPath)
 	if os.IsNotExist(err) {
 		s3error(w, r, "The specified bucket does not exist", "NoSuchBucket", http.StatusNotFound)
 		return
@@ -79,7 +78,8 @@ func handleGetRequest(w http.ResponseWriter, r *http.Request) {
 	// Construct file path
 	filePath := filepath.Join(bucketPath, objectKey)
 	// Check if file exists
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+	fstat, err := os.Stat(filePath)
+	if os.IsNotExist(err) {
 		s3error(w, r, "The resource you requested does not exist", "NoSuchKey", http.StatusNotFound)
 		return
 	}
@@ -192,7 +192,7 @@ func handlePostRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if regexFinilizeUpload.MatchString(r.URL.RawQuery) {
-		finilieMultipartUpload(w, r, bucketPath, objectKey)
+		finilizeMultipartUpload(w, r, bucketPath, objectKey)
 		return
 	}
 
