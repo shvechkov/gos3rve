@@ -144,7 +144,7 @@ func finilizeMultipartUpload(w http.ResponseWriter, r *http.Request, bucketPath 
 	defer dstFile.Close()
 
 	for _, part := range data.Parts {
-		fmt.Printf("PartNumber: %d, ETag: %s\n", part.PartNumber, part.ETag)
+		//log.Printf("PartNumber: %d, ETag: %s\n", part.PartNumber, part.ETag)
 
 		srcFile := bucketPath + "/" + uploadId + "_" + strconv.FormatInt(int64(part.PartNumber), 10) + "_" + objectKey
 		// Open the binary file for reading
@@ -156,8 +156,24 @@ func finilizeMultipartUpload(w http.ResponseWriter, r *http.Request, bucketPath 
 			return err
 
 		}
-		//TBD - check MD5s for parts
-		// !!!!!!!!!
+
+		//check  part's MD5
+		hash := md5.New()
+		if _, err = hash.Write(objectContent); err != nil {
+			s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+			log.Println("Error while calculating md5 ", err.Error())
+			return err
+		}
+
+		hash_str := hex.EncodeToString(hash.Sum(nil))
+		if strings.Compare(part.ETag, hash_str) != 0 {
+			s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+			log.Printf("CompleteMultipartUpload: part's signatures do not match (local: %s != client: %s) ",
+				hash_str, part.ETag)
+
+			return err
+
+		}
 
 		// Append data to the file
 		_, err = dstFile.Write(objectContent)
