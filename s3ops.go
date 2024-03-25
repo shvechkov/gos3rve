@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/xml"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -118,7 +119,7 @@ func finilizeMultipartUpload(w http.ResponseWriter, r *http.Request, bucketPath 
 
 	_, _, uploadId, _ := isMultiPartUpload(r)
 
-	objectContent, err := ioutil.ReadAll(r.Body)
+	objectContent, err := io.ReadAll(r.Body)
 	if err != nil {
 		s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
 		log.Println("Error reading request data")

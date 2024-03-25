@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -60,7 +59,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 
 func handleGetRequest(w http.ResponseWriter, r *http.Request) {
 	// Extract bucket name and object key from URL
-	bucketName, objectKey := extractBucketAndKey(r)
+	bucketName, objectKey, params := extractBucketAndKey(r)
 
 	if bucketName == "" {
 		_ = listBuckets(w, r, bucketPath)
@@ -85,7 +84,7 @@ func handleGetRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//If key/prefix  points to a dir -> return list of objects with a given prefix
-	if fstat.IsDir() {
+	if fstat.IsDir() || (params["prefix"] != "") {
 		listObjects(w, r, bucketPath, bucketName, objectKey)
 		return
 	}
@@ -95,7 +94,7 @@ func handleGetRequest(w http.ResponseWriter, r *http.Request) {
 
 func handlePutRequest(w http.ResponseWriter, r *http.Request) {
 	// Extract bucket name and object key from URL
-	bucketName, objectKey := extractBucketAndKey(r)
+	bucketName, objectKey, _ := extractBucketAndKey(r)
 
 	//Create Bucket request  -  PUT with bucket name and w/o object
 	if bucketName != "" && objectKey == "" {
@@ -119,7 +118,7 @@ func handlePutRequest(w http.ResponseWriter, r *http.Request) {
 
 func handleDeleteRequest(w http.ResponseWriter, r *http.Request) {
 	// Extract bucket name and object key from URL
-	bucketName, objectKey := extractBucketAndKey(r)
+	bucketName, objectKey, _ := extractBucketAndKey(r)
 
 	// Check if bucket exists
 	bucketPath := filepath.Join(bucketPath, bucketName)
@@ -151,7 +150,7 @@ func handleDeleteRequest(w http.ResponseWriter, r *http.Request) {
 func handlePostRequest(w http.ResponseWriter, r *http.Request) {
 
 	// Extract bucket name and object key from URL
-	bucketName, objectKey := extractBucketAndKey(r)
+	bucketName, objectKey, _ := extractBucketAndKey(r)
 
 	// Check if bucket exists
 	bucketPath := filepath.Join(bucketPath, bucketName)
@@ -202,7 +201,7 @@ func handlePostRequest(w http.ResponseWriter, r *http.Request) {
 
 func handleListBuckets(w http.ResponseWriter, r *http.Request) {
 	// List bucket directories
-	files, err := ioutil.ReadDir(bucketPath)
+	files, err := os.ReadDir(bucketPath)
 	if err != nil {
 		http.Error(w, "Failed to list buckets", http.StatusInternalServerError)
 		return
@@ -259,7 +258,7 @@ func isMultiPartUpload(r *http.Request) (error, bool, string, string) {
 	return nil, ret, uploadId, partNumber
 }
 
-func extractBucketAndKey(r *http.Request) (string, string) {
+func extractBucketAndKey(r *http.Request) (string, string, map[string]string) {
 	query := r.URL.RawQuery
 
 	parts := strings.SplitN(r.URL.Path[1:], "/", 2)
@@ -269,9 +268,10 @@ func extractBucketAndKey(r *http.Request) (string, string) {
 		key = parts[1]
 	}
 
+	params := make(map[string]string)
+
 	if key == "" && query != "" {
 		tokens := strings.Split(query, "&")
-		params := make(map[string]string)
 
 		for _, arg := range tokens {
 			//fmt.Println(arg)
@@ -282,5 +282,5 @@ func extractBucketAndKey(r *http.Request) (string, string) {
 
 	}
 
-	return bucket, key
+	return bucket, key, params
 }
