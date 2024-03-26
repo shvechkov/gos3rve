@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,11 +16,15 @@ import (
 	"time"
 )
 
-const (
-	bucketPath   = "./buckets/" // Path where buckets will be stored
-	s3user       = "s3user@amazon.com"
-	userId       = "96f6d18b-4d8a-4b80-bfe0-0b6be6e663b6" // := uuid.New()
-	storageClass = "STANDARD"
+var (
+	bucketPath         = "./buckets/" // Path where buckets will be stored
+	uploadsPath        = "./uploads/" // Path where to store multipaert upload parts before assembling
+	s3user             = "s3user@amazon.com"
+	userId             = "96f6d18b-4d8a-4b80-bfe0-0b6be6e663b6" // := uuid.New()
+	storageClass       = "STANDARD"
+	keyId              = ""
+	secretKey          = ""
+	svcPort      int64 = 8080
 )
 
 type BucketListResponse struct {
@@ -27,17 +32,44 @@ type BucketListResponse struct {
 }
 
 func main() {
+
+	// Define flags with default values and descriptions
+	flag.Int64Var(&svcPort, "p", 8080, "Port to listen on")
+	flag.StringVar(&uploadsPath, "dir_uploads", "./uploads/", "temp dir to store upload parts")
+	flag.StringVar(&bucketPath, "dir_buckets", "./buckets/", "dir to store buckets")
+	flag.StringVar(&s3user, "user_name", "s3user@amazon.com", "AWS S3 user name")
+	flag.StringVar(&userId, "user_id", "96f6d18b-4d8a-4b80-bfe0-0b6be6e663b6", "AWS S3 user ID")
+	flag.StringVar(&keyId, "key_id", genBase64Str(10), "Access Key ID")
+	flag.StringVar(&secretKey, "key_val", genBase64Str(32), "Secret Access Key")
+	help := flag.Bool("h", false, "Show usage")
+
+	flag.Parse()
+	if *help {
+		flag.Usage()
+		return
+	}
+
 	// Create buckets directory if it doesn't exist
 	if _, err := os.Stat(bucketPath); os.IsNotExist(err) {
 		os.Mkdir(bucketPath, 0755)
+	}
+
+	// Create uploads directory if it doesn't exist
+	if _, err := os.Stat(uploadsPath); os.IsNotExist(err) {
+		os.Mkdir(uploadsPath, 0755)
 	}
 
 	// Set up routes
 	http.HandleFunc("/", handleRequest)
 
 	// Start server
-	fmt.Println("S3 server is running on port 8080...")
-	http.ListenAndServe(":8080", nil)
+	log.Printf("S3 server is running on port %d ...", svcPort)
+	log.Printf("uploads dir  %s ...", uploadsPath)
+	log.Printf("buckets dir  %s ...", bucketPath)
+	log.Printf("access key id  %s ...", keyId)
+	log.Printf("secret access key %s ...", secretKey)
+
+	http.ListenAndServe(":"+strconv.FormatInt(svcPort, 10), nil)
 }
 
 func handleRequest(w http.ResponseWriter, r *http.Request) {

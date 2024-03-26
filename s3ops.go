@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"crypto/md5"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/xml"
 	"fmt"
@@ -323,4 +325,25 @@ func listObjects(w http.ResponseWriter, r *http.Request, localPath string, bucke
 	w.Write(buffer.Bytes())
 	return nil
 
+}
+
+func genBase64Str(len int) string {
+
+	// Create a byte slice to hold the random bytes
+	randomBytes := make([]byte, len)
+
+	// Generate random bytes
+	_, err := rand.Read(randomBytes)
+	if err != nil {
+		fmt.Println("Error generating random bytes:", err)
+		return ""
+	}
+
+	// Encode random bytes as base64
+	base64String := base64.StdEncoding.EncodeToString(randomBytes)
+
+	// Trim the base64 string to the desired length
+	base64String = base64String[:len]
+
+	return base64String
 }
