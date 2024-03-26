@@ -208,7 +208,7 @@ func handlePostRequest(w http.ResponseWriter, r *http.Request) {
 
 		w.WriteHeader(http.StatusOK)
 		w.Write(buffer.Bytes())
-		log.Printf(fmt.Sprintf("Multipart upload intiated for %s  (bucket: %s ; object: %s)", r.URL.Path, bucketName, objectKey))
+		log.Printf("Multipart upload intiated for %s  (bucket: %s ; object: %s)", r.URL.Path, bucketName, objectKey)
 		return
 	}
 
