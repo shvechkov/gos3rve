@@ -270,13 +270,6 @@ func isMultiPartUpload(r *http.Request) (error, bool, string, string) {
 	// Get the query parameters
 	queryParams := parsedURL.Query()
 
-	// Iterate over the query parameters
-	for key, values := range queryParams {
-		for _, value := range values {
-			fmt.Printf("Parameter: %s, Value: %s\n", key, value)
-		}
-	}
-
 	uploadId := queryParams.Get("uploadId")
 	partNumber := queryParams.Get("partNumber")
 

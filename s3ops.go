@@ -192,6 +192,8 @@ func finilizeMultipartUpload(w http.ResponseWriter, r *http.Request, bucketPath 
 
 	}
 
+	log.Printf("Multipart upload finished  for %s  (local path: %s ; object: %s)", r.URL.Path, bucketPath, objectKey)
+
 	return nil
 }
 
