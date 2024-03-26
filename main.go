@@ -82,8 +82,6 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 		handleDeleteRequest(w, r)
 	case http.MethodPost:
 		handlePostRequest(w, r)
-	case "LIST":
-		handleListBuckets(w, r)
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
