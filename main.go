@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"encoding/xml"
 	"flag"
 	"fmt"
 	"log"
@@ -14,11 +15,14 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 var (
-	bucketPath         = "./buckets/" // Path where buckets will be stored
-	uploadsPath        = "./uploads/" // Path where to store multipaert upload parts before assembling
+	bucketPath         = "./buckets/"   // Path where buckets will be stored
+	uploadsPath        = "./uploads/"   // Path where to store multipaert upload parts before assembling
+	cfgPath            = "./config.xml" // default config file
 	s3user             = "s3user@amazon.com"
 	userId             = "96f6d18b-4d8a-4b80-bfe0-0b6be6e663b6" // := uuid.New()
 	storageClass       = "STANDARD"
@@ -31,6 +35,39 @@ type BucketListResponse struct {
 	Buckets []string `json:"buckets"`
 }
 
+type Config struct {
+	XMLName         xml.Name `xml:"root"`
+	AccessKeyId     string   `xml:"AccessKeyId"`
+	SecretAccessKey string   `xml:"SecretAccessKey"`
+	Port            int      `xml:"Port"`
+	UploadsPath     string   `xml:"UploadsPath"`
+	BucketsPath     string   `xml:"BucketsPath"`
+}
+
+func loadConfig(path string) (Config, error) {
+	var cfg Config
+
+	// Open the XML file
+	file, err := os.Open(path)
+	if err != nil {
+		log.Printf("Error opening config file %s , err: %s", path, err)
+		return cfg, err
+	}
+	defer file.Close()
+
+	// Create a new decoder
+	decoder := xml.NewDecoder(file)
+
+	// Decode the XML data into the Person struct
+	err = decoder.Decode(&cfg)
+	if err != nil {
+		log.Printf("Error parsing config file (%s) : %s", path, err)
+		return cfg, err
+	}
+
+	return cfg, nil
+}
+
 func main() {
 
 	// Define flags with default values and descriptions
@@ -38,15 +75,25 @@ func main() {
 	flag.StringVar(&uploadsPath, "dir_uploads", "./uploads/", "temp dir to store upload parts")
 	flag.StringVar(&bucketPath, "dir_buckets", "./buckets/", "dir to store buckets")
 	flag.StringVar(&s3user, "user_name", "s3user@amazon.com", "AWS S3 user name")
-	flag.StringVar(&userId, "user_id", "96f6d18b-4d8a-4b80-bfe0-0b6be6e663b6", "AWS S3 user ID")
+	flag.StringVar(&userId, "user_id", uuid.New().String(), "AWS S3 user ID")
 	flag.StringVar(&keyId, "key_id", genBase64Str(10), "Access Key ID")
 	flag.StringVar(&secretKey, "key_val", genBase64Str(32), "Secret Access Key")
+	flag.StringVar(&cfgPath, "config", "./config.xml", "configuration file")
+
 	help := flag.Bool("h", false, "Show usage")
 
 	flag.Parse()
 	if *help {
 		flag.Usage()
 		return
+	}
+
+	if cfg, err := loadConfig(cfgPath); err == nil {
+		keyId = cfg.AccessKeyId
+		secretKey = cfg.SecretAccessKey
+		svcPort = int64(cfg.Port)
+		uploadsPath = cfg.UploadsPath
+		bucketPath = cfg.BucketsPath
 	}
 
 	// Create buckets directory if it doesn't exist
