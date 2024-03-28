@@ -4,5 +4,5 @@
     <Region>us-east-1</Region>
     <UploadsPath>./uploads</UploadsPath>
     <BucketsPath>./buckets</BucketsPath>
-    <Port>7777</Port>
+    <Port>8080</Port>
 </root>

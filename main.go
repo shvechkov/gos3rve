@@ -175,9 +175,48 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 		handleDeleteRequest(w, r)
 	case http.MethodPost:
 		handlePostRequest(w, r)
+	case http.MethodHead:
+		handleHeadRequest(w, r)
+
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+func handleHeadRequest(w http.ResponseWriter, r *http.Request) {
+	// Extract bucket name and object key from URL
+	bucketName, objectKey, params := extractBucketAndKey(r)
+
+	if bucketName == "" {
+		s3error(w, r, "The specified bucket is not valid.", "InvalidBucketName", http.StatusBadRequest)
+		return
+	}
+
+	// Check if bucket exists
+	bucketPath := filepath.Join(bucketPath, bucketName)
+	_, err := os.Stat(bucketPath)
+	if os.IsNotExist(err) {
+		s3error(w, r, "The specified bucket does not exist", "NoSuchBucket", http.StatusNotFound)
+		return
+	}
+
+	// Construct file path
+	filePath := filepath.Join(bucketPath, objectKey)
+	// Check if file exists
+	fstat, err := os.Stat(filePath)
+	if os.IsNotExist(err) {
+		s3error(w, r, "The resource you requested does not exist", "NoSuchKey", http.StatusNotFound)
+		return
+	}
+
+	//If key/prefix  points to a dir -> return list of objects with a given prefix
+	if fstat.IsDir() || (params["prefix"] != "") {
+		log.Printf("HEAD on dir %s \n", filePath)
+		return
+	}
+
+	getObjectHead(w, r, filePath)
+
 }
 
 func handleGetRequest(w http.ResponseWriter, r *http.Request) {
@@ -236,7 +275,8 @@ func handlePutRequest(w http.ResponseWriter, r *http.Request) {
 
 	// Write object content to file
 	filePath := filepath.Join(bucketPath, objectKey)
-	putObject(w, r, filePath)
+
+	putObject(w, r, filePath, strings.HasSuffix(objectKey, "/"))
 }
 
 func handleDeleteRequest(w http.ResponseWriter, r *http.Request) {

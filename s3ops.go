@@ -154,7 +154,7 @@ func finilizeMultipartUpload(w http.ResponseWriter, r *http.Request, bucketPath 
 		objectContent, err := os.ReadFile(srcFile)
 		if err != nil {
 			s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
-			log.Println("CompleteMultipartUpload: failed to read from ", srcFile, " ", err.Error())
+			log.Printf("CompleteMultipartUpload: failed to read from  %s  rtt: %s", srcFile, err.Error())
 			return err
 
 		}
@@ -197,7 +197,24 @@ func finilizeMultipartUpload(w http.ResponseWriter, r *http.Request, bucketPath 
 	return nil
 }
 
-func putObject(w http.ResponseWriter, r *http.Request, filePath string) (err error) {
+func putObject(w http.ResponseWriter, r *http.Request, path string, is_dir bool) (err error) {
+
+	//request to create directory ?
+	if is_dir {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			if err := os.Mkdir(path, 0755); err != nil {
+				s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+				log.Printf("Error creating %s : %s\n", path, err)
+				return err
+			}
+			w.WriteHeader(http.StatusCreated)
+			return nil
+		}
+
+		fmt.Printf("Directory %s exists\n", path)
+		w.WriteHeader(http.StatusConflict)
+		return nil
+	}
 
 	// Read object content from request body
 	objectContent, err := ioutil.ReadAll(r.Body)
@@ -208,7 +225,7 @@ func putObject(w http.ResponseWriter, r *http.Request, filePath string) (err err
 	}
 
 	// Write object content to file
-	dirPath := filepath.Dir(filePath)
+	dirPath := filepath.Dir(path)
 	if err = os.MkdirAll(dirPath, 0755); err != nil {
 		s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
 		log.Println("Error while creating parent directories")
@@ -218,13 +235,13 @@ func putObject(w http.ResponseWriter, r *http.Request, filePath string) (err err
 	//if it is a multipart upload , modify filePath
 	err, isMulti, uploadId, partNumber := isMultiPartUpload(r)
 	if isMulti {
-		filePath = filepath.Dir(filePath) + "/" + uploadId + "_" + partNumber + "_" + filepath.Base(filePath)
+		path = filepath.Dir(path) + "/" + uploadId + "_" + partNumber + "_" + filepath.Base(path)
 		//filePath = filePath + "_" + uploadId + "_" + partNumber
 	}
 
-	if err = os.WriteFile(filePath, objectContent, 0644); err != nil {
+	if err = os.WriteFile(path, objectContent, 0644); err != nil {
 		s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
-		log.Println("Error while writing into file ", filePath, " ", err.Error())
+		log.Println("Error while writing into file ", path, " ", err.Error())
 		return
 	}
 
@@ -276,53 +293,125 @@ func getObject(w http.ResponseWriter, r *http.Request, filePath string) error {
 	return nil
 }
 
+func getObjectHead(w http.ResponseWriter, r *http.Request, filePath string) error {
+
+	// Check if file exists
+	fstat, err := os.Stat(filePath)
+	if os.IsNotExist(err) {
+		s3error(w, r, "The resource you requested does not exist", "NoSuchKey", http.StatusNotFound)
+		return err
+	}
+
+	// Read file content
+	fileContent, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		http.Error(w, "Failed to read object content", http.StatusInternalServerError)
+		return err
+	}
+
+	hash := md5.New()
+	if _, err = hash.Write(fileContent); err != nil {
+		s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+		log.Println("Error while calculating md5 ", err.Error())
+		return err
+	}
+
+	hash_str := hex.EncodeToString(hash.Sum(nil))
+
+	w.Header().Set("ETag", hash_str)
+	w.Header().Set("Content-Type", http.DetectContentType(fileContent))
+	w.Header().Set("content-length", strconv.FormatInt(fstat.Size(), 10))
+	w.WriteHeader(http.StatusOK)
+
+	return nil
+}
+
 // https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectsV2.html
 func listObjects(w http.ResponseWriter, r *http.Request, localPath string, bucketName string, objectKey string) (err error) {
 
 	var buffer bytes.Buffer
 
+	_, _, params := extractBucketAndKey(r)
+
 	var s = fmt.Sprintf(`
 	<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
 	<Name>%s</Name>
-	<Prefix/>
+	<Prefix>%s</Prefix>
 	<MaxKeys>1000</MaxKeys>
 	<Marker/>
 	<IsTruncated>false</IsTruncated>
-	`, bucketName)
+	`, bucketName, params["prefix"])
 
+	var common_prefixes strings.Builder
 	buffer.WriteString(s)
 
-	err = filepath.Walk(localPath+"/"+objectKey,
-		func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if !info.IsDir() {
+	//	local_preffix := bucketPath + "/" + bucketName + "/"
+	local_preffix := bucketPath + "/" + bucketName + "/"
 
-				fname := strings.TrimPrefix(path, strings.TrimPrefix(bucketPath+bucketName+"/", "./"))
+	local_preffix = strings.TrimPrefix(local_preffix, "./")
+
+	// Open the directory
+	dir_name := localPath + "/" + objectKey
+	d, err := os.Open(dir_name)
+	if err != nil {
+		s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+		log.Printf(" Canr open dir %s  : %s", dir_name, err.Error())
+		return err
+	}
+	defer d.Close()
+
+	// Read directory entries
+	files, err := d.ReadDir(-1)
+	if err != nil {
+		s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+		log.Printf(" Cant read dir %s  : %s", dir_name, err.Error())
+		return err
+	}
+
+	// Print the names of files in the directory
+	for _, file := range files {
+		info, _ := file.Info()
+
+		fname := filepath.Clean(localPath + "/" + objectKey + "/" + file.Name())
+
+		if !file.IsDir() {
+			fname = strings.TrimPrefix(fname, local_preffix)
+			var entry = fmt.Sprintf(`
+			<Contents>
+				<Key>%s</Key>
+				<LastModified>%s</LastModified>
+				<Size>%d</Size>
+				<StorageClass>%s</StorageClass>
+				<Owner>
+					<ID>%s</ID>
+					<DisplayName>%s</DisplayName>
+				</Owner>
+			</Contents>
+		
+			`, fname, info.ModTime().Format(time.RFC3339), info.Size(), storageClass, userId, s3user)
+			buffer.WriteString(entry)
+		} else {
+
+			fname = strings.TrimPrefix(fname, local_preffix)
+			if fname != "" {
 				var entry = fmt.Sprintf(`
-				<Contents>
-					<Key>%s</Key>
-					<LastModified>%s</LastModified>
-					<Size>%d</Size>
-					<StorageClass>%s</StorageClass>
-					<Owner>
-						<ID>%s</ID>
-						<DisplayName>%s</DisplayName>
-					</Owner>
-				</Contents>
-			
-				`, fname, info.ModTime().Format(time.RFC3339), info.Size(), storageClass, userId, s3user)
-				buffer.WriteString(entry)
+				<CommonPrefixes>
+					<Prefix>%s/</Prefix>
+				</CommonPrefixes>
+				`, fname)
 
+				common_prefixes.WriteString(entry)
 			}
-			return nil
-		})
 
-	buffer.WriteString(
-		`
-	</ListBucketResult>
-`)
+		}
+
+	} //ls dir
+
+	buffer.WriteString(fmt.Sprintf(`	
+				%s
+			
+			</ListBucketResult>
+	`, common_prefixes.String()))
 
 	w.Write(buffer.Bytes())
 	return nil
