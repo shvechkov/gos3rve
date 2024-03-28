@@ -7,7 +7,6 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"regexp"
@@ -342,7 +341,6 @@ func getCanonicalRequest(extractedSignedHeaders http.Header, payload, queryStr, 
 	encodedPath := encodePath(urlPath)
 
 	canonicalHeaders := getCanonicalHeaders(extractedSignedHeaders)
-
 	signedHeaders := getSignedHeaders(extractedSignedHeaders)
 
 	canonicalRequest := strings.Join([]string{
@@ -353,12 +351,6 @@ func getCanonicalRequest(extractedSignedHeaders http.Header, payload, queryStr, 
 		signedHeaders,
 		payload,
 	}, "\n")
-
-	// Create Canonical Request
-	canonicalRequest2 := fmt.Sprintf("%s\n%s\n\n%s\n\n%s\nUNSIGNED-PAYLOAD",
-		method, encodedPath, canonicalHeaders, signedHeaders)
-
-	fmt.Printf("====\n%s\n===\n", canonicalRequest2)
 
 	return canonicalRequest
 }
@@ -466,19 +458,12 @@ func authenticate(r *http.Request) (bool, error) {
 		return false, errors.New("bad key")
 	}
 
-	// // Verify if the access key id matches.
-	// identity, cred, found := iam.lookupByAccessKey(signV4Values.Credential.accessKey)
-	// if !found {
-	// 	return nil, s3err.ErrInvalidAccessKeyID
-	// }
-
 	// Extract date, if not present throw error.
 	var date string
 	if date = req.Header.Get(http.CanonicalHeaderKey("X-Amz-Date")); date == "" {
 		if date = r.Header.Get("Date"); date == "" {
 			// return nil, s3err.ErrMissingDateHeader
 			return false, errors.New("ErrMissingDateHeader")
-
 		}
 	}
 	// Parse date header.
@@ -514,7 +499,6 @@ func authenticate(r *http.Request) (bool, error) {
 
 	// Get canonical request.
 	canonicalRequest := getCanonicalRequest(extractedSignedHeaders, hashedPayload, queryStr, req.URL.Path, req.Method)
-	fmt.Printf("Request:\n%s\n", canonicalRequest)
 
 	// Get string to sign from canonical request.
 	stringToSign := getStringToSign(canonicalRequest, t, signV4Values.Credential.getScope())

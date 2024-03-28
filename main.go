@@ -20,15 +20,17 @@ import (
 )
 
 var (
-	bucketPath         = "./buckets/"   // Path where buckets will be stored
-	uploadsPath        = "./uploads/"   // Path where to store multipaert upload parts before assembling
-	cfgPath            = "./config.xml" // default config file
-	s3user             = "s3user@amazon.com"
-	userId             = "96f6d18b-4d8a-4b80-bfe0-0b6be6e663b6" // := uuid.New()
-	storageClass       = "STANDARD"
-	keyId              = ""
-	secretKey          = ""
-	svcPort      int64 = 8080
+	bucketPath   string
+	uploadsPath  string
+	cfgPath      string
+	s3user       string
+	userId       string
+	s3region     string
+	storageClass string
+	keyId        string
+	secretKey    string
+	svcPort      int64
+	help         bool
 )
 
 type BucketListResponse struct {
@@ -39,6 +41,7 @@ type Config struct {
 	XMLName         xml.Name `xml:"root"`
 	AccessKeyId     string   `xml:"AccessKeyId"`
 	SecretAccessKey string   `xml:"SecretAccessKey"`
+	Region          string   `xml:"Region"`
 	Port            int      `xml:"Port"`
 	UploadsPath     string   `xml:"UploadsPath"`
 	BucketsPath     string   `xml:"BucketsPath"`
@@ -46,11 +49,12 @@ type Config struct {
 
 func loadConfig(path string) (Config, error) {
 	var cfg Config
+	log.Printf("Reading configuration from %s...\n", cfgPath)
 
 	// Open the XML file
 	file, err := os.Open(path)
 	if err != nil {
-		log.Printf("Error opening config file %s , err: %s", path, err)
+		log.Printf("Error opening config file %s , err: %s\n", path, err)
 		return cfg, err
 	}
 	defer file.Close()
@@ -61,11 +65,20 @@ func loadConfig(path string) (Config, error) {
 	// Decode the XML data into the Person struct
 	err = decoder.Decode(&cfg)
 	if err != nil {
-		log.Printf("Error parsing config file (%s) : %s", path, err)
+		log.Printf("Error parsing config file (%s) : %s \n", path, err)
 		return cfg, err
 	}
 
 	return cfg, nil
+}
+
+func isFlagOn(name string) bool {
+	for _, str := range os.Args {
+		if str == "-"+name {
+			return true
+		}
+	}
+	return false
 }
 
 func main() {
@@ -78,22 +91,49 @@ func main() {
 	flag.StringVar(&userId, "user_id", uuid.New().String(), "AWS S3 user ID")
 	flag.StringVar(&keyId, "key_id", genBase64Str(10), "Access Key ID")
 	flag.StringVar(&secretKey, "key_val", genBase64Str(32), "Secret Access Key")
-	flag.StringVar(&cfgPath, "config", "./config.xml", "configuration file")
-
-	help := flag.Bool("h", false, "Show usage")
+	flag.StringVar(&s3region, "region", "us-east-1", "S3 region")
+	flag.StringVar(&cfgPath, "config", "./config.xml", "configuration file ")
+	flag.BoolVar(&help, "h", false, "Show usage")
 
 	flag.Parse()
-	if *help {
+
+	if help {
 		flag.Usage()
 		return
 	}
 
-	if cfg, err := loadConfig(cfgPath); err == nil {
-		keyId = cfg.AccessKeyId
-		secretKey = cfg.SecretAccessKey
-		svcPort = int64(cfg.Port)
-		uploadsPath = cfg.UploadsPath
-		bucketPath = cfg.BucketsPath
+	//first try load config .. Command line args override config values
+	cfg, err := loadConfig(cfgPath)
+
+	if err == nil {
+
+		if cfg.AccessKeyId != "" && !isFlagOn("key_id") {
+			keyId = cfg.AccessKeyId
+		}
+
+		if cfg.SecretAccessKey != "" && !isFlagOn("key_val") {
+			secretKey = cfg.SecretAccessKey
+		}
+
+		if int64(cfg.Port) != 0 && !isFlagOn("p") {
+			svcPort = int64(cfg.Port)
+		}
+
+		if cfg.UploadsPath != "" && !isFlagOn("dir_uploads") {
+			uploadsPath = cfg.UploadsPath
+		}
+
+		if cfg.BucketsPath != "" && !isFlagOn("dir_buckets") {
+			bucketPath = cfg.BucketsPath
+		}
+
+		if cfg.Region != "" && !isFlagOn("region") {
+			s3region = cfg.Region
+		}
+
+		log.Printf("Loaded configuration from %s...", cfgPath)
+		log.Printf("*** Note: command-line arguments take precedence over values from the configuration file")
+
 	}
 
 	// Create buckets directory if it doesn't exist
@@ -113,13 +153,19 @@ func main() {
 	log.Printf("S3 server is running on port %d ...", svcPort)
 	log.Printf("uploads dir  %s ...", uploadsPath)
 	log.Printf("buckets dir  %s ...", bucketPath)
-	log.Printf("access key id  %s ...", keyId)
-	log.Printf("secret access key %s ...", secretKey)
+	log.Printf("access key id  \"%s\" ...", keyId)
 
-	http.ListenAndServe(":"+strconv.FormatInt(svcPort, 10), nil)
+	err = http.ListenAndServe(":"+strconv.FormatInt(svcPort, 10), nil)
+	log.Printf("Exitting (%s) \n", err.Error())
 }
 
 func handleRequest(w http.ResponseWriter, r *http.Request) {
+
+	if res, err := authenticate(r); err != nil || !res {
+		s3error(w, r, "Access Denied", "AccessDenied", http.StatusForbidden)
+		return
+	}
+
 	switch r.Method {
 	case http.MethodGet:
 		handleGetRequest(w, r)
