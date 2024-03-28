@@ -1,0 +1,8 @@
+<root>
+    <AccessKeyId>any</AccessKeyId>
+    <SecretAccessKey>key</SecretAccessKey>
+    <Region>us-east-1</Region>
+    <UploadsPath>./uploads</UploadsPath>
+    <BucketsPath>./buckets</BucketsPath>
+    <Port>8080</Port>
+</root>
