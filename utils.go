@@ -9,7 +9,9 @@ import (
 	"encoding/xml"
 	"errors"
 	"io"
+	"io/fs"
 	"net/http"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -542,4 +544,47 @@ func EscapeStringForXML(s string) string {
 	var b bytes.Buffer
 	xml.Escape(&b, []byte(s))
 	return b.String()
+}
+
+// DirEntryFromStat creates a fs.DirEntry from os.FileInfo
+func DirEntryFromStat(fi os.FileInfo) fs.DirEntry {
+	return &dirEntryFromStat{
+		fileInfo: fi,
+	}
+}
+
+type dirEntryFromStat struct {
+	fileInfo os.FileInfo
+}
+
+func (d *dirEntryFromStat) Name() string {
+	return d.fileInfo.Name()
+}
+
+func (d *dirEntryFromStat) IsDir() bool {
+	return d.fileInfo.IsDir()
+}
+
+func (d *dirEntryFromStat) Type() fs.FileMode {
+	return d.fileInfo.Mode().Type()
+}
+
+func (d *dirEntryFromStat) Info() (fs.FileInfo, error) {
+	return d.fileInfo, nil
+}
+
+func (d *dirEntryFromStat) Size() int64 {
+	return d.fileInfo.Size()
+}
+
+func (d *dirEntryFromStat) Mode() fs.FileMode {
+	return d.fileInfo.Mode()
+}
+
+func (d *dirEntryFromStat) ModTime() time.Time {
+	return d.fileInfo.ModTime()
+}
+
+func (d *dirEntryFromStat) Sys() interface{} {
+	return d.fileInfo.Sys()
 }

@@ -9,6 +9,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -354,21 +355,44 @@ func listObjects(w http.ResponseWriter, r *http.Request, localPath string, bucke
 	local_preffix = strings.TrimPrefix(local_preffix, "./")
 
 	// Open the directory
-	dir_name := localPath + "/" + objectKey
-	d, err := os.Open(dir_name)
+	path := localPath + "/" + objectKey
+	d, err := os.Open(path)
 	if err != nil {
 		s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
-		log.Printf(" Canr open dir %s  : %s", dir_name, err.Error())
+		log.Printf(" Canr open  %s  : %s", path, err.Error())
 		return err
 	}
 	defer d.Close()
 
-	// Read directory entries
-	files, err := d.ReadDir(-1)
+	info, err := d.Stat()
 	if err != nil {
 		s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
-		log.Printf(" Cant read dir %s  : %s", dir_name, err.Error())
+		log.Printf(" Canr stat  %s  : %s", path, err.Error())
 		return err
+	}
+
+	var files []fs.DirEntry
+
+	if !info.IsDir() {
+		fileInfo, err := os.Stat(path)
+		if err != nil {
+			s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+			log.Printf(" Cant read stat %s  : %s", path, err.Error())
+			return err
+		}
+
+		dirEntry := DirEntryFromStat(fileInfo)
+		files = append(files, dirEntry)
+
+	} else {
+		// Read directory entries
+		files, err = d.ReadDir(-1)
+		if err != nil {
+			s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+			log.Printf(" Cant read dir %s  : %s", path, err.Error())
+			return err
+		}
+
 	}
 
 	// Print the names of files in the directory
