@@ -329,15 +329,16 @@ func handlePostRequest(w http.ResponseWriter, r *http.Request) {
 	//https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html
 	if r.URL.RawQuery == "uploads" {
 
+		s := fmt.Sprintf(`
+		<InitiateMultipartUploadResult>
+			<Bucket>%s</Bucket>
+			<Key>%s</Key>
+			<UploadId>%s</UploadId>
+		</InitiateMultipartUploadResult>
+`, bucketName, EscapeStringForXML(objectKey), strconv.FormatInt(time.Now().UnixNano(), 10))
+
 		var buffer bytes.Buffer
-		buffer.WriteString(
-			fmt.Sprintf(`
-			<InitiateMultipartUploadResult>
-				<Bucket>%s</Bucket>
-				<Key>%s</Key>
-				<UploadId>%s</UploadId>
-			</InitiateMultipartUploadResult>
-	`, bucketName, objectKey, strconv.FormatInt(time.Now().UnixNano(), 10)))
+		buffer.WriteString(s)
 
 		w.WriteHeader(http.StatusOK)
 		w.Write(buffer.Bytes())

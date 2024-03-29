@@ -148,7 +148,10 @@ func finilizeMultipartUpload(w http.ResponseWriter, r *http.Request, bucketPath 
 	for _, part := range data.Parts {
 		//log.Printf("PartNumber: %d, ETag: %s\n", part.PartNumber, part.ETag)
 
-		srcFile := bucketPath + "/" + uploadId + "_" + strconv.FormatInt(int64(part.PartNumber), 10) + "_" + objectKey
+		srcFile := filepath.Dir(dstFilePath) + "/" + uploadId + "_" + strconv.FormatInt(int64(part.PartNumber), 10) + "_" + filepath.Base(dstFilePath)
+
+		//srcFile := bucketPath + "/" + uploadId + "_" + strconv.FormatInt(int64(part.PartNumber), 10) + "_" + objectKey
+
 		// Open the binary file for reading
 
 		objectContent, err := os.ReadFile(srcFile)
@@ -388,7 +391,7 @@ func listObjects(w http.ResponseWriter, r *http.Request, localPath string, bucke
 				</Owner>
 			</Contents>
 		
-			`, fname, info.ModTime().Format(time.RFC3339), info.Size(), storageClass, userId, s3user)
+			`, EscapeStringForXML(fname), info.ModTime().Format(time.RFC3339), info.Size(), storageClass, userId, s3user)
 			buffer.WriteString(entry)
 		} else {
 
@@ -398,7 +401,7 @@ func listObjects(w http.ResponseWriter, r *http.Request, localPath string, bucke
 				<CommonPrefixes>
 					<Prefix>%s/</Prefix>
 				</CommonPrefixes>
-				`, fname)
+				`, EscapeStringForXML(fname))
 
 				common_prefixes.WriteString(entry)
 			}

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
+	"encoding/xml"
 	"errors"
 	"io"
 	"net/http"
@@ -534,4 +535,11 @@ func compareSignatureV4(sig1, sig2 string) bool {
 	// The CTC using []byte(str) works because the hex encoding
 	// is unique for a sequence of bytes. See also compareSignatureV2.
 	return subtle.ConstantTimeCompare([]byte(sig1), []byte(sig2)) == 1
+}
+
+// EscapeStringForXML escapes special characters in a string for XML.
+func EscapeStringForXML(s string) string {
+	var b bytes.Buffer
+	xml.Escape(&b, []byte(s))
+	return b.String()
 }
