@@ -59,7 +59,6 @@ tested with s3cmd
 | ListObjectsV2 | yes |  ls|
 | CreateBucket | yes |  mb |
 | DeleteBucket | yes|  rb|
-| DeleteBucket | yes|  rb|
 | PutObject | yes | put |
 | GetObject | yes | get |
 | DeleteObject | yes | del|
