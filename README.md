@@ -39,14 +39,15 @@ Usage of ./gos3rve:
 
 tested with s3cmd 
 
-| s3cmd operation | Center-aligned | Right-aligned |
-|:----------------|:--------------:|--------------:|
-| ls              | Center         | Right         |
-| mb              | Center         | Right         |
-| mb         | Center         | Right         |
-| put         | Center         | Right         |
-| get         | Center         | Right         |
-| del         | Center         | Right         |
+| AWS API  | supported | s3cmdcmd |
+|:------|:-------:|----------:|
+| ListObjectsV2 | yes |  ls|
+| CreateBucket | yes |  mb |
+| DeleteBucket | yes|  rb|
+| DeleteBucket | yes|  rb|
+| PutObject | yes | put |
+| GetObject | yes | get |
+| DeleteObject | yes | del|
 
 
 
