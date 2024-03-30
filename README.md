@@ -35,11 +35,11 @@ Usage of ./gos3rve:
     	AWS S3 user name (default "s3user@amazon.com")
 ```
 
-#### supported S3 operations 
+### supported S3 operations 
 
 tested with s3cmd 
 
-| AWS API  | supported | s3cmdcmd |
+| AWS API  | supported | s3cmd |
 |:------|:-------:|----------:|
 | ListObjectsV2 | yes |  ls|
 | CreateBucket | yes |  mb |
@@ -50,10 +50,13 @@ tested with s3cmd
 | DeleteObject | yes | del|
 
 
+### Disclaimer
 
+This is a toy project - quick and dirty code created for testing and educational purposes only. Use at your own risk.
+Look at [ceph](https://github.com/ceph/ceph) or [seaweedfs](https://github.com/seaweedfs/seaweedfs/tree/master) if you need production grade scalable solution
 
-TBD 
+### TBD 
+- parts of multipart uploads should go into separate temp dir (to prevent end user from seeing partially uploaded objects/to maintain atomicity). If multipart-part upload fails we should clean stale parts .. This can be done asynchronously by GC thread which wil monitor temp uploads dir
 - implement mv /renames 
 
-- parts of multipart uploads should go into separate temp dir (to prevent end user from seeing partially uploaded objects/to maintain atomicity). If multipart-part upload fails we should clean stale parts .. This can be done asynchronously by GC thread which wil monitor temp uploads dir
 
