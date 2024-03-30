@@ -35,6 +35,21 @@ Usage of ./gos3rve:
     	AWS S3 user name (default "s3user@amazon.com")
 ```
 
+Configuration values can be passed in configuration file (using --config fla)
+Here is the sample config file: 
+
+```
+<root>
+    <AccessKeyId>any</AccessKeyId>
+    <SecretAccessKey>key</SecretAccessKey>
+    <Region>us-east-1</Region>
+    <UploadsPath>./uploads</UploadsPath>
+    <BucketsPath>./buckets</BucketsPath>
+    <Port>8080</Port>
+</root>
+```
+
+
 ### supported S3 operations 
 
 tested with s3cmd 
