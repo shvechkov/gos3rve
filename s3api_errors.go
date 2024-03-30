@@ -3,7 +3,9 @@ package main
 //courtesy  of  seaweedfs project https://github.com/seaweedfs/seaweedfs/blob/master/weed/s3api/s3err/s3api_errors.go
 
 import (
+	"bytes"
 	"encoding/xml"
+	"fmt"
 	"net/http"
 )
 
@@ -99,6 +101,48 @@ const (
 
 	OwnershipControlsNotFoundError
 )
+
+// consult with this
+// https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#RESTErrorResponses
+// func s3error(w http.ResponseWriter, r *http.Request, msg string, code string, httpStatus int) (err error) {
+
+// 	var buffer bytes.Buffer
+
+// 	buffer.WriteString(fmt.Sprintf(
+// 		`<?xml version='1.0' encoding='UTF-8'?>
+// 		<Error>
+// 			<Code>%s</Code>
+// 			<Message>%s</Message>
+// 			<RequestId>4442587FB7D0A2F9</RequestId>
+// 		</Error>
+
+// `, code, msg))
+
+// 	http.Error(w, buffer.String(), httpStatus)
+
+// 	return nil
+// }
+
+func s3err(w http.ResponseWriter, code ErrorCode) (err error) {
+
+	var buffer bytes.Buffer
+
+	apiErr := GetAPIError(code)
+
+	buffer.WriteString(fmt.Sprintf(
+		`<?xml version='1.0' encoding='UTF-8'?>
+		<Error>
+			<Code>%s</Code>
+			<Message>%s</Message>
+			<RequestId>4442587FB7D0A2F9</RequestId>
+		</Error>
+	
+`, apiErr.Code, apiErr.Description))
+
+	http.Error(w, buffer.String(), apiErr.HTTPStatusCode)
+
+	return nil
+}
 
 // error code to APIError structure, these fields carry respective
 // descriptions for all the error responses.

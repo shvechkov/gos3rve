@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -26,34 +27,13 @@ func makeBucket(w http.ResponseWriter, r *http.Request, bucketName string) (err 
 	bucketPath := filepath.Join(bucketPath, bucketName)
 	if _, err = os.Stat(bucketPath); os.IsNotExist(err) {
 		if err = os.MkdirAll(bucketPath, 0755); err != nil {
-			s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+			s3err(w, ErrInternalError)
 			return
 		}
 		w.WriteHeader(http.StatusCreated)
 	} else {
 		w.WriteHeader(http.StatusOK)
 	}
-	return nil
-}
-
-// consult with this
-// https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#RESTErrorResponses
-func s3error(w http.ResponseWriter, r *http.Request, msg string, code string, httpStatus int) (err error) {
-
-	var buffer bytes.Buffer
-
-	buffer.WriteString(fmt.Sprintf(
-		`<?xml version='1.0' encoding='UTF-8'?>
-		<Error>
-			<Code>%s</Code>
-			<Message>%s</Message>
-			<RequestId>4442587FB7D0A2F9</RequestId>
-		</Error>
-	
-`, code, msg))
-
-	http.Error(w, buffer.String(), httpStatus)
-
 	return nil
 }
 
@@ -124,7 +104,7 @@ func finilizeMultipartUpload(w http.ResponseWriter, r *http.Request, bucketPath 
 
 	objectContent, err := io.ReadAll(r.Body)
 	if err != nil {
-		s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+		s3err(w, ErrInternalError)
 		log.Println("Error reading request data")
 		return err
 	}
@@ -147,33 +127,28 @@ func finilizeMultipartUpload(w http.ResponseWriter, r *http.Request, bucketPath 
 	defer dstFile.Close()
 
 	for _, part := range data.Parts {
-		//log.Printf("PartNumber: %d, ETag: %s\n", part.PartNumber, part.ETag)
-
 		srcFile := filepath.Dir(dstFilePath) + "/" + uploadId + "_" + strconv.FormatInt(int64(part.PartNumber), 10) + "_" + filepath.Base(dstFilePath)
-
-		//srcFile := bucketPath + "/" + uploadId + "_" + strconv.FormatInt(int64(part.PartNumber), 10) + "_" + objectKey
 
 		// Open the binary file for reading
 
 		objectContent, err := os.ReadFile(srcFile)
 		if err != nil {
-			s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+			s3err(w, ErrInternalError)
 			log.Printf("CompleteMultipartUpload: failed to read from  %s  rtt: %s", srcFile, err.Error())
 			return err
-
 		}
 
 		//check  part's MD5
 		hash := md5.New()
 		if _, err = hash.Write(objectContent); err != nil {
-			s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+			s3err(w, ErrInternalError)
 			log.Println("Error while calculating md5 ", err.Error())
 			return err
 		}
 
 		hash_str := hex.EncodeToString(hash.Sum(nil))
 		if strings.Compare(part.ETag, hash_str) != 0 {
-			s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+			s3err(w, ErrSignatureDoesNotMatch)
 			log.Printf("CompleteMultipartUpload: part's signatures do not match (local: %s != client: %s) ",
 				hash_str, part.ETag)
 
@@ -184,7 +159,7 @@ func finilizeMultipartUpload(w http.ResponseWriter, r *http.Request, bucketPath 
 		// Append data to the file
 		_, err = dstFile.Write(objectContent)
 		if err != nil {
-			s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+			s3err(w, ErrInternalError)
 			log.Println("CompleteMultipartUpload: Error while writing into file ", dstFilePath, " ", err.Error())
 			return err
 		}
@@ -207,7 +182,7 @@ func putObject(w http.ResponseWriter, r *http.Request, path string, is_dir bool)
 	if is_dir {
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			if err := os.Mkdir(path, 0755); err != nil {
-				s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+				s3err(w, ErrInternalError)
 				log.Printf("Error creating %s : %s\n", path, err)
 				return err
 			}
@@ -223,7 +198,7 @@ func putObject(w http.ResponseWriter, r *http.Request, path string, is_dir bool)
 	// Read object content from request body
 	objectContent, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+		s3err(w, ErrInternalError)
 		log.Println("Error reading request data")
 		return
 	}
@@ -231,7 +206,7 @@ func putObject(w http.ResponseWriter, r *http.Request, path string, is_dir bool)
 	// Write object content to file
 	dirPath := filepath.Dir(path)
 	if err = os.MkdirAll(dirPath, 0755); err != nil {
-		s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+		s3err(w, ErrInternalError)
 		log.Println("Error while creating parent directories")
 		return
 	}
@@ -244,14 +219,14 @@ func putObject(w http.ResponseWriter, r *http.Request, path string, is_dir bool)
 	}
 
 	if err = os.WriteFile(path, objectContent, 0644); err != nil {
-		s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+		s3err(w, ErrInternalError)
 		log.Println("Error while writing into file ", path, " ", err.Error())
 		return
 	}
 
 	hash := md5.New()
 	if _, err = hash.Write(objectContent); err != nil {
-		s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+		s3err(w, ErrInternalError)
 		log.Println("Error while calculating md5 ", err.Error())
 		return
 	}
@@ -269,20 +244,20 @@ func getObject(w http.ResponseWriter, r *http.Request, filePath string) error {
 	// Check if file exists
 	fstat, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
-		s3error(w, r, "The resource you requested does not exist", "NoSuchKey", http.StatusNotFound)
+		s3err(w, ErrNoSuchKey)
 		return err
 	}
 
 	// Read file content
-	fileContent, err := ioutil.ReadFile(filePath)
+	fileContent, err := os.ReadFile(filePath)
 	if err != nil {
-		http.Error(w, "Failed to read object content", http.StatusInternalServerError)
+		s3err(w, ErrInternalError)
 		return err
 	}
 
 	hash := md5.New()
 	if _, err = hash.Write(fileContent); err != nil {
-		s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+		s3err(w, ErrInternalError)
 		log.Println("Error while calculating md5 ", err.Error())
 		return err
 	}
@@ -302,7 +277,7 @@ func getObjectHead(w http.ResponseWriter, r *http.Request, filePath string) erro
 	// Check if file exists
 	fstat, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
-		s3error(w, r, "The resource you requested does not exist", "NoSuchKey", http.StatusNotFound)
+		s3err(w, ErrNoSuchKey)
 		return err
 	}
 
@@ -315,7 +290,7 @@ func getObjectHead(w http.ResponseWriter, r *http.Request, filePath string) erro
 
 	hash := md5.New()
 	if _, err = hash.Write(fileContent); err != nil {
-		s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+		s3err(w, ErrInternalError)
 		log.Println("Error while calculating md5 ", err.Error())
 		return err
 	}
@@ -351,22 +326,31 @@ func listObjects(w http.ResponseWriter, r *http.Request, localPath string, bucke
 
 	//	local_preffix := bucketPath + "/" + bucketName + "/"
 	local_preffix := bucketPath + "/" + bucketName + "/"
-
 	local_preffix = strings.TrimPrefix(local_preffix, "./")
 
 	// Open the directory
 	path := localPath + "/" + objectKey
 	d, err := os.Open(path)
 	if err != nil {
-		s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
-		log.Printf(" Canr open  %s  : %s", path, err.Error())
+		if pathErr, ok := err.(*os.PathError); ok {
+			// Check the specific error code
+			if pathErr.Err == syscall.ENOTDIR {
+				//ErrExistingObjectIsFile
+				s3err(w, ErrExistingObjectIsFile)
+
+				return
+			}
+		}
+
+		s3err(w, ErrInternalError)
+		log.Printf(" Can't open  %s  : %s", path, err.Error())
 		return err
 	}
 	defer d.Close()
 
 	info, err := d.Stat()
 	if err != nil {
-		s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+		s3err(w, ErrInternalError)
 		log.Printf(" Canr stat  %s  : %s", path, err.Error())
 		return err
 	}
@@ -376,7 +360,7 @@ func listObjects(w http.ResponseWriter, r *http.Request, localPath string, bucke
 	if !info.IsDir() {
 		fileInfo, err := os.Stat(path)
 		if err != nil {
-			s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+			s3err(w, ErrInternalError)
 			log.Printf(" Cant read stat %s  : %s", path, err.Error())
 			return err
 		}
@@ -384,11 +368,15 @@ func listObjects(w http.ResponseWriter, r *http.Request, localPath string, bucke
 		dirEntry := DirEntryFromStat(fileInfo)
 		files = append(files, dirEntry)
 
+		//we are dealing with "ls" on individual file
+		//objectKey is treated as a dir name - blank it
+		objectKey = ""
+
 	} else {
 		// Read directory entries
 		files, err = d.ReadDir(-1)
 		if err != nil {
-			s3error(w, r, "InternalServerError", "InternalServerError", http.StatusInternalServerError)
+			s3err(w, ErrInternalError)
 			log.Printf(" Cant read dir %s  : %s", path, err.Error())
 			return err
 		}

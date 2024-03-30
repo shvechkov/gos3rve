@@ -8,9 +8,11 @@ import (
 	"encoding/hex"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"sort"
@@ -587,4 +589,55 @@ func (d *dirEntryFromStat) ModTime() time.Time {
 
 func (d *dirEntryFromStat) Sys() interface{} {
 	return d.fileInfo.Sys()
+}
+
+func isMultiPartUpload(r *http.Request) (error, bool, string, string) {
+
+	// Parse the URI
+	parsedURL, err := url.Parse(r.URL.RequestURI())
+	if err != nil {
+		fmt.Println("Error parsing URI:", err)
+		return err, false, "", ""
+	}
+
+	// Get the query parameters
+	queryParams := parsedURL.Query()
+
+	uploadId := queryParams.Get("uploadId")
+	partNumber := queryParams.Get("partNumber")
+
+	var ret bool = false
+
+	if uploadId != "" {
+		ret = true
+	}
+
+	return nil, ret, uploadId, partNumber
+}
+
+func extractBucketAndKey(r *http.Request) (string, string, map[string]string) {
+	query := r.URL.RawQuery
+
+	parts := strings.SplitN(r.URL.Path[1:], "/", 2)
+	bucket := parts[0]
+	key := ""
+	if len(parts) > 1 {
+		key = parts[1]
+	}
+
+	params := make(map[string]string)
+
+	if key == "" && query != "" {
+		tokens := strings.Split(query, "&")
+
+		for _, arg := range tokens {
+			//fmt.Println(arg)
+			p := strings.Split(arg, "=")
+			params[p[0]] = p[1]
+		}
+		key = strings.Replace(params["prefix"], params["delimiter"], "/", -1)
+
+	}
+
+	return bucket, key, params
 }

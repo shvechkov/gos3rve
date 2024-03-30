@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -93,7 +92,7 @@ func main() {
 	flag.StringVar(&secretKey, "key_val", genBase64Str(32), "Secret Access Key")
 	flag.StringVar(&s3region, "region", "us-east-1", "S3 region")
 	flag.StringVar(&cfgPath, "config", "./config.xml", "configuration file ")
-	flag.BoolVar(&help, "h", false, "Show usage")
+	flag.BoolVar(&help, "help", false, "Show usage")
 
 	flag.Parse()
 
@@ -162,7 +161,7 @@ func main() {
 func handleRequest(w http.ResponseWriter, r *http.Request) {
 
 	if res, err := authenticate(r); err != nil || !res {
-		s3error(w, r, "Access Denied", "AccessDenied", http.StatusForbidden)
+		s3err(w, ErrAccessDenied)
 		return
 	}
 
@@ -188,7 +187,7 @@ func handleHeadRequest(w http.ResponseWriter, r *http.Request) {
 	bucketName, objectKey, params := extractBucketAndKey(r)
 
 	if bucketName == "" {
-		s3error(w, r, "The specified bucket is not valid.", "InvalidBucketName", http.StatusBadRequest)
+		s3err(w, ErrInvalidBucketName)
 		return
 	}
 
@@ -196,7 +195,7 @@ func handleHeadRequest(w http.ResponseWriter, r *http.Request) {
 	bucketPath := filepath.Join(bucketPath, bucketName)
 	_, err := os.Stat(bucketPath)
 	if os.IsNotExist(err) {
-		s3error(w, r, "The specified bucket does not exist", "NoSuchBucket", http.StatusNotFound)
+		s3err(w, ErrNoSuchBucket)
 		return
 	}
 
@@ -205,13 +204,14 @@ func handleHeadRequest(w http.ResponseWriter, r *http.Request) {
 	// Check if file exists
 	fstat, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
-		s3error(w, r, "The resource you requested does not exist", "NoSuchKey", http.StatusNotFound)
+		s3err(w, ErrNoSuchKey)
 		return
 	}
 
 	//If key/prefix  points to a dir -> return list of objects with a given prefix
 	if fstat.IsDir() || (params["prefix"] != "") {
 		log.Printf("HEAD on dir %s \n", filePath)
+		s3err(w, ErrInvalidRequest)
 		return
 	}
 
@@ -232,21 +232,24 @@ func handleGetRequest(w http.ResponseWriter, r *http.Request) {
 	bucketPath := filepath.Join(bucketPath, bucketName)
 	_, err := os.Stat(bucketPath)
 	if os.IsNotExist(err) {
-		s3error(w, r, "The specified bucket does not exist", "NoSuchBucket", http.StatusNotFound)
+		s3err(w, ErrNoSuchBucket)
 		return
 	}
 
 	// Construct file path
 	filePath := filepath.Join(bucketPath, objectKey)
+	filePath = filepath.Clean(filePath)
+
 	// Check if file exists
 	fstat, err := os.Stat(filePath)
-	if os.IsNotExist(err) {
-		s3error(w, r, "The resource you requested does not exist", "NoSuchKey", http.StatusNotFound)
+
+	if err != nil || fstat == nil {
+		s3err(w, ErrNoSuchKey)
 		return
 	}
 
 	//If key/prefix  points to a dir -> return list of objects with a given prefix
-	if fstat.IsDir() || (params["prefix"] != "") {
+	if fstat.IsDir() || (params != nil && params["prefix"] != "") {
 		listObjects(w, r, bucketPath, bucketName, objectKey)
 		return
 	}
@@ -264,12 +267,12 @@ func handlePutRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Handling below the request to create/upload an opbject
+	// Below is the logics for creating/uploading an opbject
 
 	// Check if bucket exists
 	bucketPath := filepath.Join(bucketPath, bucketName)
 	if _, err := os.Stat(bucketPath); os.IsNotExist(err) {
-		s3error(w, r, "The specified bucket does not exist", "NoSuchBucket", http.StatusNotFound)
+		s3err(w, ErrNoSuchBucket)
 		return
 	}
 
@@ -286,7 +289,7 @@ func handleDeleteRequest(w http.ResponseWriter, r *http.Request) {
 	// Check if bucket exists
 	bucketPath := filepath.Join(bucketPath, bucketName)
 	if _, err := os.Stat(bucketPath); os.IsNotExist(err) {
-		s3error(w, r, "The specified bucket does not exist", "NoSuchBucket", http.StatusNotFound)
+		s3err(w, ErrNoSuchBucket)
 		return
 	}
 
@@ -295,16 +298,14 @@ func handleDeleteRequest(w http.ResponseWriter, r *http.Request) {
 
 	// Check if file exists
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		s3error(w, r, "The resource you requested does not exist", "NoSuchKey", http.StatusNotFound)
+		s3err(w, ErrNoSuchKey)
 		return
 	}
 
 	// Delete bucket/object
 	err := os.Remove(filePath)
 	if err != nil {
-		//TBD  - we most prob got here because dir is not empty ..Provide beter err handling/reporting
-		s3error(w, r, "Bucket is not empty", "NotEmpty", http.StatusConflict)
-
+		s3err(w, ErrBucketNotEmpty)
 		return
 	}
 
@@ -319,7 +320,7 @@ func handlePostRequest(w http.ResponseWriter, r *http.Request) {
 	// Check if bucket exists
 	bucketPath := filepath.Join(bucketPath, bucketName)
 	if _, err := os.Stat(bucketPath); os.IsNotExist(err) {
-		s3error(w, r, "The specified bucket does not exist", "NoSuchBucket", http.StatusNotFound)
+		s3err(w, ErrNoSuchBucket)
 		return
 	}
 
@@ -336,6 +337,15 @@ func handlePostRequest(w http.ResponseWriter, r *http.Request) {
 			<UploadId>%s</UploadId>
 		</InitiateMultipartUploadResult>
 `, bucketName, EscapeStringForXML(objectKey), strconv.FormatInt(time.Now().UnixNano(), 10))
+
+		// Check if bucket exists
+		filePath := filepath.Join(bucketPath, objectKey)
+		fstat, _ := os.Stat(filePath)
+
+		if fstat != nil && fstat.IsDir() {
+			s3err(w, ErrExistingObjectIsDirectory)
+			return
+		}
 
 		var buffer bytes.Buffer
 		buffer.WriteString(s)
@@ -360,7 +370,7 @@ func handlePostRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s3error(w, r, "Malformed request", "InvalidArgument", http.StatusNotFound)
+	s3err(w, ErrMalformedPOSTRequest)
 
 }
 
@@ -368,7 +378,8 @@ func handleListBuckets(w http.ResponseWriter, r *http.Request) {
 	// List bucket directories
 	files, err := os.ReadDir(bucketPath)
 	if err != nil {
-		http.Error(w, "Failed to list buckets", http.StatusInternalServerError)
+		log.Printf("Could not readir  %s : %s\n", bucketPath, err)
+		s3err(w, ErrInternalError)
 		return
 	}
 
@@ -384,61 +395,11 @@ func handleListBuckets(w http.ResponseWriter, r *http.Request) {
 	response := BucketListResponse{Buckets: bucketList}
 	jsonData, err := json.Marshal(response)
 	if err != nil {
-		http.Error(w, "Failed to marshal bucket list", http.StatusInternalServerError)
+		log.Printf("Failed to marshal bucket list.  err: %s \n", err)
+		s3err(w, ErrInternalError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(jsonData)
-}
-
-func isMultiPartUpload(r *http.Request) (error, bool, string, string) {
-
-	// Parse the URI
-	parsedURL, err := url.Parse(r.URL.RequestURI())
-	if err != nil {
-		fmt.Println("Error parsing URI:", err)
-		return err, false, "", ""
-	}
-
-	// Get the query parameters
-	queryParams := parsedURL.Query()
-
-	uploadId := queryParams.Get("uploadId")
-	partNumber := queryParams.Get("partNumber")
-
-	var ret bool = false
-
-	if uploadId != "" {
-		ret = true
-	}
-
-	return nil, ret, uploadId, partNumber
-}
-
-func extractBucketAndKey(r *http.Request) (string, string, map[string]string) {
-	query := r.URL.RawQuery
-
-	parts := strings.SplitN(r.URL.Path[1:], "/", 2)
-	bucket := parts[0]
-	key := ""
-	if len(parts) > 1 {
-		key = parts[1]
-	}
-
-	params := make(map[string]string)
-
-	if key == "" && query != "" {
-		tokens := strings.Split(query, "&")
-
-		for _, arg := range tokens {
-			//fmt.Println(arg)
-			p := strings.Split(arg, "=")
-			params[p[0]] = p[1]
-		}
-		key = strings.Replace(params["prefix"], params["delimiter"], "/", -1)
-
-	}
-
-	return bucket, key, params
 }
