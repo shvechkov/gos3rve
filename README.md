@@ -1,6 +1,6 @@
 # gos3rve
 
-### Serve files off your local HDD via S3 API
+### Serves files off your local HDD via S3 API
 
 Use this utility to expose local (DAS) storage via S3 compatible API 
 

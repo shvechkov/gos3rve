@@ -1,6 +1,7 @@
 package main
 
-//courtesy  of  seaweedfs project https://github.com/seaweedfs/seaweedfs/blob/master/weed/s3api/s3err/s3api_errors.go
+//partially courtesy of seaweedfs project https://github.com/seaweedfs/seaweedfs/blob/master/weed/s3api/s3err/s3api_errors.go
+//consulted & copied error codes - big thank you!
 
 import (
 	"bytes"
