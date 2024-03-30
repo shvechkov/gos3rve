@@ -2,7 +2,7 @@
 
 ### Serve files off your local HDD via S3 API
 
-Use this utility to expose you local (DAS) storage via S3 compatible API 
+Use this utility to expose local (DAS) storage via S3 compatible API 
 
 Example:
 ```
@@ -34,6 +34,21 @@ Usage of ./gos3rve:
   -user_name string
     	AWS S3 user name (default "s3user@amazon.com")
 ```
+
+#### supported S3 operations 
+
+tested with s3cmd 
+
+| s3cmd operation | Center-aligned | Right-aligned |
+|:----------------|:--------------:|--------------:|
+| ls              | Center         | Right         |
+| mb              | Center         | Right         |
+| mb         | Center         | Right         |
+| put         | Center         | Right         |
+| get         | Center         | Right         |
+| del         | Center         | Right         |
+
+
 
 
 TBD 
