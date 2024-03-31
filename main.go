@@ -362,6 +362,7 @@ func handlePostRequest(w http.ResponseWriter, r *http.Request) {
 	regexFinilizeUpload, err := regexp.Compile(pattern)
 	if err != nil {
 		fmt.Println("Error compiling regular expression:", err)
+		s3err(w, ErrInternalError)
 		return
 	}
 
