@@ -35,7 +35,7 @@ Usage of ./gos3rve:
     	AWS S3 user name (default "s3user@amazon.com")
 ```
 
-Configuration values can be passed in configuration file (using --config fla)
+Configuration values can be passed in configuration file (using --config flag)
 Here is the sample config file: 
 
 ```
