@@ -326,7 +326,7 @@ func listObjects(w http.ResponseWriter, r *http.Request, localPath string, bucke
 
 	//	local_preffix := bucketPath + "/" + bucketName + "/"
 	local_preffix := bucketPath + "/" + bucketName + "/"
-	local_preffix = strings.TrimPrefix(local_preffix, "./")
+	local_preffix = filepath.Clean(strings.TrimPrefix(local_preffix, "./"))
 
 	// Open the directory
 	path := localPath + "/" + objectKey
@@ -390,7 +390,7 @@ func listObjects(w http.ResponseWriter, r *http.Request, localPath string, bucke
 		fname := filepath.Clean(localPath + "/" + objectKey + "/" + file.Name())
 
 		if !file.IsDir() {
-			fname = strings.TrimPrefix(fname, local_preffix)
+			fname = strings.TrimPrefix(fname, local_preffix+"/")
 			var entry = fmt.Sprintf(`
 			<Contents>
 				<Key>%s</Key>
