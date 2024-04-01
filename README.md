@@ -74,3 +74,14 @@ Look at [ceph](https://github.com/ceph/ceph) or [seaweedfs](https://github.com/s
 - implement mv /renames 
 
 
+### How to build 
+Install golang on your platform and execute :
+```
+git clone git@github.com:shvechkov/gos3rve.git && cd gos3rve && go build 
+```
+
+For creating static executable (which runs on all Linux platforms w. same arch) run:
+```
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -tags netgo -ldflags '-w'
+```
+
