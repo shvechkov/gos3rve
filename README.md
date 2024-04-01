@@ -77,8 +77,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -tags netgo -ldflags '-w'
 
 ### TBD 
 - parts of multipart uploads should go into separate temp dir (to prevent end user from seeing partially uploaded objects/to maintain atomicity). If multipart-part upload fails we should clean stale parts .. This can be done asynchronously by GC thread which wil monitor temp uploads dir
-- implement mv /renames
-- implement other missing APIs (?)
+- implement mv /renames, implement other missing APIs (?)
 - add option to allow only unique uploads and/or use FS reflinks, if supported ( xfs/btrs/zfs), to clone existing object instead of creating new onces    
 
 
