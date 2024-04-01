@@ -64,16 +64,6 @@ tested with s3cmd
 | DeleteObject | yes | del|
 
 
-### Disclaimer
-
-This is a toy project - quick and dirty code created for testing and educational purposes only. Use at your own risk.
-Look at [ceph](https://github.com/ceph/ceph) or [seaweedfs](https://github.com/seaweedfs/seaweedfs/tree/master) if you need production grade scalable solution
-
-### TBD 
-- parts of multipart uploads should go into separate temp dir (to prevent end user from seeing partially uploaded objects/to maintain atomicity). If multipart-part upload fails we should clean stale parts .. This can be done asynchronously by GC thread which wil monitor temp uploads dir
-- implement mv /renames 
-
-
 ### How to build 
 Install golang on your platform and execute :
 ```
@@ -84,4 +74,19 @@ For creating static executable (which runs on all Linux platforms w. same arch) 
 ```
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -tags netgo -ldflags '-w'
 ```
+
+### TBD 
+- parts of multipart uploads should go into separate temp dir (to prevent end user from seeing partially uploaded objects/to maintain atomicity). If multipart-part upload fails we should clean stale parts .. This can be done asynchronously by GC thread which wil monitor temp uploads dir
+- implement mv /renames
+- implement other missing APIs (?)
+- add option to allow only unique uploads and/or use FS reflinks, if supported ( xfs/btrs/zfs), to clone existing object instead of creating new onces    
+
+
+
+### Disclaimer
+
+This is a toy project - quick and dirty code created for testing and educational purposes only. Use at your own risk.
+Look at [ceph](https://github.com/ceph/ceph) or [seaweedfs](https://github.com/seaweedfs/seaweedfs/tree/master) if you need production grade scalable solution
+
+
 
