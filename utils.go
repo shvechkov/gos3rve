@@ -639,5 +639,7 @@ func extractBucketAndKey(r *http.Request) (string, string, map[string]string) {
 
 	}
 
+	key, _ = url.QueryUnescape(key)
+
 	return bucket, key, params
 }
