@@ -195,15 +195,16 @@ func putObject(w http.ResponseWriter, r *http.Request, path string, is_dir bool)
 		return nil
 	}
 
-	// Read object content from request body
-	objectContent, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		s3err(w, ErrInternalError)
-		log.Println("Error reading request data")
-		return
+	//below goes a file upload request
+
+	//if it is a multipart upload , modify filePath
+	_, isMulti, uploadId, partNumber := isMultiPartUpload(r)
+	if isMulti {
+		path = filepath.Dir(path) + "/" + uploadId + "_" + partNumber + "_" + filepath.Base(path)
+		//filePath = filePath + "_" + uploadId + "_" + partNumber
 	}
 
-	// Write object content to file
+	// make sure parent dir exists and create if it does not
 	dirPath := filepath.Dir(path)
 	if err = os.MkdirAll(dirPath, 0755); err != nil {
 		s3err(w, ErrInternalError)
@@ -211,24 +212,60 @@ func putObject(w http.ResponseWriter, r *http.Request, path string, is_dir bool)
 		return
 	}
 
-	//if it is a multipart upload , modify filePath
-	err, isMulti, uploadId, partNumber := isMultiPartUpload(r)
-	if isMulti {
-		path = filepath.Dir(path) + "/" + uploadId + "_" + partNumber + "_" + filepath.Base(path)
-		//filePath = filePath + "_" + uploadId + "_" + partNumber
-	}
-
-	if err = os.WriteFile(path, objectContent, 0644); err != nil {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
 		s3err(w, ErrInternalError)
-		log.Println("Error while writing into file ", path, " ", err.Error())
+		log.Printf("Error  creatig file %s", path)
 		return
 	}
+
+	defer func() {
+		file.Close()
+		// If there was an error, delete file
+		if err != nil {
+			os.Remove(file.Name())
+		}
+	}()
+
+	// Create a buffer to store chunks of data
+	const MB = 1024 * 1024
+	buffer := make([]byte, 5*MB)
+
+	totalSize := 0
+	n := 0
 
 	hash := md5.New()
-	if _, err = hash.Write(objectContent); err != nil {
-		s3err(w, ErrInternalError)
-		log.Println("Error while calculating md5 ", err.Error())
-		return
+
+	// Loop to read the request body in chunks
+	for {
+		n, err = r.Body.Read(buffer)
+		if err != nil && err != io.EOF {
+			s3err(w, ErrInternalError)
+			log.Println("Error reading request data")
+			return err
+		}
+
+		// Check if we've reached the end of the request body
+		if n == 0 {
+			break
+		}
+
+		if _, err = hash.Write(buffer[:n]); err != nil {
+			s3err(w, ErrInternalError)
+			log.Println("Error while calculating md5 ", err.Error())
+			return
+		}
+
+		// Write data to the file
+		_, err = file.Write(buffer[:n])
+		if err != nil {
+			s3err(w, ErrInternalError)
+			log.Printf("Error writing into file %s , err %s", path, err)
+			return
+		}
+
+		// Increment the total size
+		totalSize += n
 	}
 
 	hash_str := hex.EncodeToString(hash.Sum(nil))

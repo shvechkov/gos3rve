@@ -280,6 +280,7 @@ func handlePutRequest(w http.ResponseWriter, r *http.Request) {
 	filePath := filepath.Join(bucketPath, objectKey)
 
 	putObject(w, r, filePath, strings.HasSuffix(objectKey, "/"))
+
 }
 
 func handleDeleteRequest(w http.ResponseWriter, r *http.Request) {
