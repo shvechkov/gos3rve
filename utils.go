@@ -633,9 +633,15 @@ func extractBucketAndKey(r *http.Request) (string, string, map[string]string) {
 		for _, arg := range tokens {
 			//fmt.Println(arg)
 			p := strings.Split(arg, "=")
-			params[p[0]] = p[1]
+			if len(p) > 1 {
+				params[p[0]] = p[1]
+			}
 		}
-		key = strings.Replace(params["prefix"], params["delimiter"], "/", -1)
+
+		key = params["prefix"]
+		if params["delimiter"] != "" {
+			key = strings.Replace(params["prefix"], params["delimiter"], "/", -1)
+		}
 
 	}
 

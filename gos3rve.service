@@ -1,0 +1,13 @@
+[Unit]
+Description=gos3rve demo service
+After=network.target
+StartLimitIntervalSec=0
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+User=root
+ExecStart=/opt/gos3rve/gos3rve -dir_buckets /data_pool/ -config /opt/gos3rve/config.xml
+
+[Install]
+WantedBy=multi-user.target
