@@ -75,6 +75,15 @@ For creating static executable (which runs on all Linux platforms w. same arch) 
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -tags netgo -ldflags '-w'
 ```
 
+### Run as a service
+
+```
+sudo cp gos3rve.service  /etc/systemd/system/
+sudo systemctl start gos3rve
+sudo systemctl enable gos3rve
+```
+
+
 ### TBD 
 - parts of multipart uploads should go into separate temp dir (to prevent end user from seeing partially uploaded objects/to maintain atomicity). If multipart-part upload fails we should clean stale parts .. This can be done asynchronously by GC thread which wil monitor temp uploads dir
 - implement mv /renames, implement other missing APIs (?)
