@@ -406,8 +406,9 @@ func listObjects(w http.ResponseWriter, r *http.Request, localPath string, bucke
 		files = append(files, dirEntry)
 
 		//we are dealing with "ls" on individual file
-		//objectKey is treated as a dir name - blank it
-		objectKey = ""
+		//objectKey is treated as a dir name - chop off filename
+
+		objectKey = filepath.Dir(objectKey)
 
 	} else {
 		// Read directory entries
