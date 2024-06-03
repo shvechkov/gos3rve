@@ -1,11 +1,11 @@
-# gos3rve
+# [gos3rve](https://github.com/shvechkov/gos3rve)
 
-### Serves files off your local HDD via S3 API
+### Expose local storage via S3 API (S3 Proxy) 
 
-Use this utility to expose local (DAS) storage via S3 compatible API 
-
-Example:
+TLDR;
 ```
+git clone git@github.com:shvechkov/gos3rve.git && cd gos3rve && go build 
+
 ./gos3rve  -p 8080 -user_id you@email.com -key_id s3KeyID -key_val s3SecretKey
 ```
 
