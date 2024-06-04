@@ -1,6 +1,6 @@
 # [gos3rve](https://github.com/shvechkov/gos3rve)
 
-### Expose local storage via S3 API (S3 Proxy) 
+### Expose local storage via S3 API ( S3 Proxy  || S3 connector  || S3 golang server ) 
 
 TLDR;
 ```
