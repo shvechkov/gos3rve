@@ -201,7 +201,6 @@ func handleHeadRequest(w http.ResponseWriter, r *http.Request) {
 
 	// HeadBucketCommand: HEAD /{bucket}
 	if objectKey == "" && params["prefix"] == "" {
-		w.Header().Set("x-amz-bucket-region", s3region)
 		w.WriteHeader(http.StatusOK)
 		return
 	}
