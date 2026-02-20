@@ -199,6 +199,13 @@ func handleHeadRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// HeadBucketCommand: HEAD /{bucket}
+	if objectKey == "" && params["prefix"] == "" {
+		w.Header().Set("x-amz-bucket-region", s3region)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	// Construct file path
 	filePath := filepath.Join(bucketPath, objectKey)
 	// Check if file exists
